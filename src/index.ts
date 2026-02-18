@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { createRequire } from 'module';
 import {
   authCommand,
+  logoutCommand,
   whoamiCommand,
   checkCommand,
   chatsCommand,
@@ -38,6 +39,7 @@ program
 
 // Auth commands
 program.addCommand(authCommand);
+program.addCommand(logoutCommand);
 program.addCommand(checkCommand);
 program.addCommand(whoamiCommand);
 

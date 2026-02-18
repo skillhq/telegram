@@ -1,4 +1,5 @@
 export { authCommand } from './auth.js';
+export { logoutCommand } from './logout.js';
 export { whoamiCommand } from './whoami.js';
 export { checkCommand } from './check.js';
 export { chatsCommand } from './chats.js';

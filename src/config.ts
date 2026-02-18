@@ -131,3 +131,22 @@ export function getSessionString(): string | undefined {
   const config = loadConfig(() => {});
   return config.sessionString;
 }
+
+export function clearSessionString(): void {
+  const path = getGlobalConfigPath();
+  if (!existsSync(path)) return;
+
+  try {
+    const raw = readFileSync(path, 'utf8');
+    const parsed = JSON5.parse(raw);
+    if (isPlainObject(parsed)) {
+      delete parsed.sessionString;
+      writeFileSync(path, JSON5.stringify(parsed, null, 2), { encoding: 'utf8', mode: 0o600 });
+    }
+  } catch {
+    // If we can't parse, nothing to clear
+  }
+
+  // Invalidate cache
+  cachedConfig = null;
+}
