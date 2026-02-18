@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient, sendMessage, disconnectClient } from '../client.js';
 import { formatJson } from '../formatters/json.js';
+import { auditLog } from '../audit.js';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -16,6 +17,7 @@ export const replyCommand = new Command('reply')
     try {
       const client = await getClient();
       const result = await sendMessage(client, chat, message, parseInt(msgId));
+      auditLog({ timestamp: new Date().toISOString(), command: 'reply', target: chat, message, replyToMsgId: parseInt(msgId), result: { success: true, messageId: result.id } });
 
       spinner.succeed(chalk.green('Reply sent'));
 
@@ -32,6 +34,7 @@ export const replyCommand = new Command('reply')
 
       await disconnectClient();
     } catch (error) {
+      auditLog({ timestamp: new Date().toISOString(), command: 'reply', target: chat, message, replyToMsgId: parseInt(msgId), result: { success: false, error: error instanceof Error ? error.message : String(error) } });
       spinner.fail('Failed to send reply');
       console.error(error instanceof Error ? error.message : error);
       process.exit(1);
