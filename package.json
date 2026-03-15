@@ -1,6 +1,6 @@
 {
   "name": "@skillhq/telegram",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Fast Telegram CLI for reading, searching, and sending messages",
   "type": "module",
   "main": "dist/index.js",
