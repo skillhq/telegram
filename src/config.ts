@@ -4,19 +4,20 @@ import { dirname, join } from 'node:path';
 import JSON5 from 'json5';
 import {
   SECRET_KEYS,
-  isKeychainAvailable,
   isSecretKey,
-  keychainDelete,
-  keychainGet,
-  keychainSet,
-  migrateSecretsToKeychain,
-} from './keychain.js';
+  isSecretStoreAvailable,
+  migrateSecretsToStore,
+  secretDelete,
+  secretGet,
+  secretSet,
+} from './secrets.js';
 
 export interface TgConfig {
   apiId?: number;
   apiHash?: string;
   sessionString?: string;
   defaultFormat?: 'plain' | 'json' | 'markdown';
+  opVault?: string;
 }
 
 const DEFAULT_CONFIG: TgConfig = {
@@ -67,9 +68,9 @@ export function loadConfig(warn: (message: string) => void = console.warn): TgCo
   const globalPath = getGlobalConfigPath();
   const fileConfig = readConfigFile(globalPath, warn);
 
-  // Migrate secrets from file → keychain on first load (one-time per process)
-  if (isKeychainAvailable()) {
-    const cleaned = migrateSecretsToKeychain(fileConfig as Record<string, unknown>);
+  // Migrate secrets from file → secret store on first load (one-time per process)
+  if (isSecretStoreAvailable()) {
+    const cleaned = migrateSecretsToStore(fileConfig as Record<string, unknown>);
     if (cleaned !== fileConfig) {
       // Secrets were migrated — rewrite the file without them
       try {
@@ -81,16 +82,16 @@ export function loadConfig(warn: (message: string) => void = console.warn): TgCo
     }
   }
 
-  // Build config: file values + keychain overlay for secrets
+  // Build config: file values + secret store overlay for secrets
   const config: TgConfig = {
     ...DEFAULT_CONFIG,
     ...fileConfig,
   };
 
-  // Overlay keychain secrets (takes precedence over file values)
-  if (isKeychainAvailable()) {
+  // Overlay secret store values (takes precedence over file values)
+  if (isSecretStoreAvailable()) {
     for (const key of SECRET_KEYS) {
-      const val = keychainGet(key);
+      const val = secretGet(key);
       if (val) (config as Record<string, unknown>)[key] = val;
     }
   }
@@ -110,12 +111,12 @@ export function saveConfig(config: Partial<TgConfig>): void {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 
-  // Route secrets to keychain when available
+  // Route secrets to secret store when available
   const fileData: Partial<TgConfig> = {};
   for (const [key, value] of Object.entries(config)) {
-    if (isSecretKey(key) && isKeychainAvailable() && typeof value === 'string') {
-      if (!keychainSet(key, value)) {
-        // Keychain write failed — fall back to file storage
+    if (isSecretKey(key) && isSecretStoreAvailable() && typeof value === 'string') {
+      if (!secretSet(key, value)) {
+        // Secret store write failed — fall back to file storage
         (fileData as Record<string, unknown>)[key] = value;
       }
     } else {
@@ -138,8 +139,8 @@ export function saveConfig(config: Partial<TgConfig>): void {
     }
   }
 
-  // Strip secrets from existing file data if keychain is available
-  if (isKeychainAvailable()) {
+  // Strip secrets from existing file data if secret store is available
+  if (isSecretStoreAvailable()) {
     for (const key of Object.keys(existing)) {
       if (isSecretKey(key)) {
         delete (existing as Record<string, unknown>)[key];
@@ -188,8 +189,8 @@ export function getSessionString(): string | undefined {
 }
 
 export function clearSessionString(): void {
-  // Delete from keychain
-  keychainDelete('sessionString');
+  // Delete from secret store
+  secretDelete('sessionString');
 
   // Delete from file
   const path = getGlobalConfigPath();

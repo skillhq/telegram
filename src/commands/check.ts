@@ -1,8 +1,17 @@
 import { Command } from 'commander';
 import { getClient, getMe, disconnectClient } from '../client.js';
 import { isConfigured } from '../config.js';
+import { isSecretStoreAvailable } from '../secrets.js';
+import { isOnePasswordAvailable } from '../onepassword.js';
+import { isKeychainAvailable } from '../keychain.js';
 import chalk from 'chalk';
 import ora from 'ora';
+
+function getSecretBackendLabel(): string {
+  if (isOnePasswordAvailable()) return '1Password';
+  if (isKeychainAvailable()) return 'macOS Keychain';
+  return 'config file (plaintext)';
+}
 
 export const checkCommand = new Command('check')
   .description('Verify session and credentials')
@@ -20,6 +29,7 @@ export const checkCommand = new Command('check')
 
       spinner.succeed(chalk.green('Session valid'));
       console.log(`Logged in as: ${me.firstName || ''} ${me.lastName || ''} (@${me.username || 'no username'})`);
+      console.log(`Secret storage: ${getSecretBackendLabel()}`);
 
       await disconnectClient();
     } catch (error) {
