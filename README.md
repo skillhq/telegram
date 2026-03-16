@@ -4,6 +4,14 @@ Fast Telegram CLI for reading, searching, and sending messages. Designed for bot
 
 ## Installation
 
+### Quick install (with onboarding)
+
+```bash
+curl -sSfL https://github.com/skillhq/telegram/raw/main/install.sh | bash
+```
+
+This installs the CLI, offers to set up the Telegram skill for AI agents, authenticates, and runs a test query.
+
 ### As a Claude Code Skill (recommended)
 
 ```bash
