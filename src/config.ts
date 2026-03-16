@@ -2,6 +2,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import JSON5 from 'json5';
+import {
+  SECRET_KEYS,
+  isKeychainAvailable,
+  isSecretKey,
+  keychainDelete,
+  keychainGet,
+  keychainSet,
+  migrateSecretsToKeychain,
+} from './keychain.js';
 
 export interface TgConfig {
   apiId?: number;
@@ -56,13 +65,37 @@ export function loadConfig(warn: (message: string) => void = console.warn): TgCo
   }
 
   const globalPath = getGlobalConfigPath();
+  const fileConfig = readConfigFile(globalPath, warn);
 
-  // Only load from global config - local config disabled for security
-  // (prevents attack where malicious .tgrc.json5 overrides credentials)
-  cachedConfig = {
+  // Migrate secrets from file → keychain on first load (one-time per process)
+  if (isKeychainAvailable()) {
+    const cleaned = migrateSecretsToKeychain(fileConfig as Record<string, unknown>);
+    if (cleaned !== fileConfig) {
+      // Secrets were migrated — rewrite the file without them
+      try {
+        const content = JSON5.stringify(cleaned, null, 2);
+        writeFileSync(globalPath, content, { encoding: 'utf8', mode: 0o600 });
+      } catch {
+        // Non-fatal: secrets are already in keychain, file cleanup can retry next time
+      }
+    }
+  }
+
+  // Build config: file values + keychain overlay for secrets
+  const config: TgConfig = {
     ...DEFAULT_CONFIG,
-    ...readConfigFile(globalPath, warn),
+    ...fileConfig,
   };
+
+  // Overlay keychain secrets (takes precedence over file values)
+  if (isKeychainAvailable()) {
+    for (const key of SECRET_KEYS) {
+      const val = keychainGet(key);
+      if (val) (config as Record<string, unknown>)[key] = val;
+    }
+  }
+
+  cachedConfig = config;
   cachedConfigTime = now;
 
   return cachedConfig;
@@ -75,6 +108,19 @@ export function saveConfig(config: Partial<TgConfig>): void {
   // Create directory with restrictive permissions (owner only)
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+
+  // Route secrets to keychain when available
+  const fileData: Partial<TgConfig> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (isSecretKey(key) && isKeychainAvailable() && typeof value === 'string') {
+      if (!keychainSet(key, value)) {
+        // Keychain write failed — fall back to file storage
+        (fileData as Record<string, unknown>)[key] = value;
+      }
+    } else {
+      (fileData as Record<string, unknown>)[key] = value;
+    }
   }
 
   // Load existing config and merge, with proper error handling
@@ -92,7 +138,16 @@ export function saveConfig(config: Partial<TgConfig>): void {
     }
   }
 
-  const merged = { ...existing, ...config };
+  // Strip secrets from existing file data if keychain is available
+  if (isKeychainAvailable()) {
+    for (const key of Object.keys(existing)) {
+      if (isSecretKey(key)) {
+        delete (existing as Record<string, unknown>)[key];
+      }
+    }
+  }
+
+  const merged = { ...existing, ...fileData };
   const content = JSON5.stringify(merged, null, 2);
 
   // Write with restrictive permissions (owner read/write only)
@@ -133,18 +188,22 @@ export function getSessionString(): string | undefined {
 }
 
 export function clearSessionString(): void {
-  const path = getGlobalConfigPath();
-  if (!existsSync(path)) return;
+  // Delete from keychain
+  keychainDelete('sessionString');
 
-  try {
-    const raw = readFileSync(path, 'utf8');
-    const parsed = JSON5.parse(raw);
-    if (isPlainObject(parsed)) {
-      delete parsed.sessionString;
-      writeFileSync(path, JSON5.stringify(parsed, null, 2), { encoding: 'utf8', mode: 0o600 });
+  // Delete from file
+  const path = getGlobalConfigPath();
+  if (existsSync(path)) {
+    try {
+      const raw = readFileSync(path, 'utf8');
+      const parsed = JSON5.parse(raw);
+      if (isPlainObject(parsed)) {
+        delete parsed.sessionString;
+        writeFileSync(path, JSON5.stringify(parsed, null, 2), { encoding: 'utf8', mode: 0o600 });
+      }
+    } catch {
+      // If we can't parse, nothing to clear
     }
-  } catch {
-    // If we can't parse, nothing to clear
   }
 
   // Invalidate cache
