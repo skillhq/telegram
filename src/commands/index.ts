@@ -19,3 +19,4 @@ export { foldersCommand } from './folders.js';
 export { folderCommand } from './folder.js';
 export { folderAddCommand } from './folder-add.js';
 export { folderRemoveCommand } from './folder-remove.js';
+export { writeAccessCommand } from './write-access.js';

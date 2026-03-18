@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { getClient, removeChatFromFolder, disconnectClient } from '../client.js';
+import { assertWriteEnabled } from '../guard.js';
 import ora from 'ora';
 
 export const folderRemoveCommand = new Command('folder-remove')
@@ -7,6 +8,7 @@ export const folderRemoveCommand = new Command('folder-remove')
   .argument('<folder>', 'Folder name')
   .argument('<chat>', 'Chat name, username, or ID')
   .action(async (folder, chat) => {
+    assertWriteEnabled();
     const spinner = ora(`Removing "${chat}" from folder "${folder}"...`).start();
 
     try {

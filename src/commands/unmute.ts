@@ -1,11 +1,13 @@
 import { Command } from 'commander';
 import { getClient, unmuteChat, disconnectClient } from '../client.js';
+import { assertWriteEnabled } from '../guard.js';
 import ora from 'ora';
 
 export const unmuteCommand = new Command('unmute')
   .description('Unmute a chat')
   .argument('<chat>', 'Chat name, username, or ID')
   .action(async (chat) => {
+    assertWriteEnabled();
     const spinner = ora(`Unmuting "${chat}"...`).start();
 
     try {

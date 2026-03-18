@@ -25,6 +25,7 @@ import {
   folderCommand,
   folderAddCommand,
   folderRemoveCommand,
+  writeAccessCommand,
 } from './commands/index.js';
 
 const require = createRequire(import.meta.url);
@@ -67,6 +68,9 @@ program.addCommand(folderRemoveCommand);
 // Write commands
 program.addCommand(sendCommand);
 program.addCommand(replyCommand);
+
+// Configuration
+program.addCommand(writeAccessCommand);
 
 // Utilities
 program.addCommand(syncCommand);

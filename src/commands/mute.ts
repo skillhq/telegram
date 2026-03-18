@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { getClient, muteChat, disconnectClient } from '../client.js';
+import { assertWriteEnabled } from '../guard.js';
 import ora from 'ora';
 
 export const muteCommand = new Command('mute')
@@ -7,6 +8,7 @@ export const muteCommand = new Command('mute')
   .argument('<chat>', 'Chat name, username, or ID')
   .option('-d, --duration <duration>', 'Duration (1h, 8h, 1d, 1w, or forever)', 'forever')
   .action(async (chat, options) => {
+    assertWriteEnabled();
     const spinner = ora(`Muting "${chat}"...`).start();
 
     try {

@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getClient, sendMessage, disconnectClient } from '../client.js';
 import { formatJson } from '../formatters/json.js';
 import { auditLog } from '../audit.js';
+import { assertWriteEnabled } from '../guard.js';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -11,6 +12,7 @@ export const sendCommand = new Command('send')
   .argument('<message>', 'Message text')
   .option('--json', 'Output as JSON')
   .action(async (target, message, options) => {
+    assertWriteEnabled();
     const spinner = ora(`Sending message to "${target}"...`).start();
 
     try {

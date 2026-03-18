@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { getClient, addChatToFolder, disconnectClient } from '../client.js';
+import { assertWriteEnabled } from '../guard.js';
 import ora from 'ora';
 
 export const folderAddCommand = new Command('folder-add')
@@ -7,6 +8,7 @@ export const folderAddCommand = new Command('folder-add')
   .argument('<folder>', 'Folder name')
   .argument('<chat>', 'Chat name, username, or ID')
   .action(async (folder, chat) => {
+    assertWriteEnabled();
     const spinner = ora(`Adding "${chat}" to folder "${folder}"...`).start();
 
     try {

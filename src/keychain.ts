@@ -3,7 +3,7 @@ import { platform } from 'node:os';
 
 const SERVICE_NAME = 'tg-cli';
 const SECURITY_PATH = '/usr/bin/security';
-export const SECRET_KEYS = new Set(['apiHash', 'sessionString']);
+export const SECRET_KEYS = new Set(['apiHash', 'sessionString', 'writeEnabled']);
 
 let keychainAvailableCache: boolean | null = null;
 

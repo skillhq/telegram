@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient, kickUser, disconnectClient } from '../client.js';
 import { auditLog } from '../audit.js';
+import { assertWriteEnabled } from '../guard.js';
 import ora from 'ora';
 
 export const kickCommand = new Command('kick')
@@ -8,6 +9,7 @@ export const kickCommand = new Command('kick')
   .argument('<group>', 'Group name or username')
   .argument('<user>', 'Username to kick (e.g., @username)')
   .action(async (group, user) => {
+    assertWriteEnabled();
     const spinner = ora(`Kicking ${user} from "${group}"...`).start();
 
     try {
