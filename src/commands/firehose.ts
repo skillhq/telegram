@@ -31,27 +31,27 @@ export const firehoseCommand = new Command('firehose')
       let senderId: string | undefined;
       try {
         if (msg.fromId) {
-          const entity = await client.getEntity(msg.fromId);
-          if (entity instanceof Api.User) {
-            sender = entity.firstName || entity.username || 'Unknown';
-            senderId = entity.id.toString();
-          } else if (entity instanceof Api.Channel || entity instanceof Api.Chat) {
-            sender = (entity as Api.Channel | Api.Chat).title || 'Unknown';
-            senderId = entity.id.toString();
+          const e = await client.getEntity(msg.fromId);
+          if (e instanceof Api.User) {
+            sender = e.firstName || e.username || 'Unknown';
+            senderId = e.id.toString();
+          } else if (e instanceof Api.Channel || e instanceof Api.Chat) {
+            sender = (e as Api.Channel | Api.Chat).title || 'Unknown';
+            senderId = e.id.toString();
           }
         }
-      } catch { /* ignore resolution errors */ }
+      } catch { /* ignore */ }
 
-      let chatId: string | undefined;
-      let chatTitle: string | undefined;
+      let peerChatId: string | undefined;
+      let peerChatTitle: string | undefined;
       try {
         if (msg.peerId) {
           const peer = await client.getEntity(msg.peerId);
-          chatId = peer.id.toString();
+          peerChatId = peer.id.toString();
           if (peer instanceof Api.User) {
-            chatTitle = peer.firstName || peer.username || undefined;
+            peerChatTitle = peer.firstName || peer.username || undefined;
           } else if (peer instanceof Api.Chat || peer instanceof Api.Channel) {
-            chatTitle = (peer as Api.Chat | Api.Channel).title || undefined;
+            peerChatTitle = (peer as Api.Chat | Api.Channel).title || undefined;
           }
         }
       } catch { /* ignore */ }
@@ -59,8 +59,8 @@ export const firehoseCommand = new Command('firehose')
       const line = JSON.stringify({
         id: msg.id,
         date: new Date(msg.date * 1000).toISOString(),
-        chatId,
-        chatTitle,
+        chatId: peerChatId,
+        chatTitle: peerChatTitle,
         sender,
         senderId,
         text: msg.message || '',
