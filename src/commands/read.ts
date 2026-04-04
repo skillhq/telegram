@@ -78,10 +78,12 @@ async function readAllChats(options: { limit: number; minDate?: Date; maxDate?: 
         filtered.push({
           id: msg.id,
           date: msgDate,
+          chatId,
+          chatTitle: title,
           sender,
           senderId,
           text: msg.message || '',
-          replyToMsgId: msg.replyTo?.replyToMsgId,
+          replyToMsgId: msg.replyTo?.replyToMsgId ?? null,
           isOutgoing: msg.out ?? false,
         });
       }
@@ -133,7 +135,11 @@ export const readCommand = new Command('read')
         spinner.stop();
 
         if (format === 'json') {
-          console.log(formatJson(results));
+          for (const { messages } of results) {
+            for (const msg of messages) {
+              process.stdout.write(JSON.stringify(msg) + '\n');
+            }
+          }
         } else {
           for (const { chatTitle, messages } of results) {
             if (format === 'markdown') {
@@ -176,7 +182,9 @@ export const readCommand = new Command('read')
 
       switch (format) {
         case 'json':
-          console.log(formatJson({ chatTitle, messages }));
+          for (const msg of messages) {
+            process.stdout.write(JSON.stringify({ ...msg, chatTitle }) + '\n');
+          }
           break;
         case 'markdown':
           console.log(formatMessagesMarkdown(messages, chatTitle));
