@@ -106,6 +106,17 @@ telegram folder-add "Work" "ProjectChat"     # Add chat to folder
 telegram folder-remove "Work" "ProjectChat"  # Remove chat from folder
 ```
 
+### Streaming (Firehose)
+
+```bash
+telegram firehose                            # Stream all incoming messages as NDJSON
+telegram firehose --chat "MetaDAO"           # Stream only one chat
+telegram firehose --include-outgoing         # Include your own messages
+telegram firehose | jq .text                 # Pipe to jq for processing
+```
+
+Runs until interrupted (Ctrl-C). Each line is a JSON object with `id`, `date`, `chatId`, `chatTitle`, `sender`, `senderId`, `text`, `replyToMsgId`, and `isOutgoing`.
+
 ### Utilities
 
 ```bash
