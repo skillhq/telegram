@@ -475,9 +475,9 @@ export async function getAdminGroups(client: TelegramClient): Promise<ChatInfo[]
   return adminGroups;
 }
 
-type ResolvedEntity = Api.User | Api.Chat | Api.Channel;
+export type ResolvedEntity = Api.User | Api.Chat | Api.Channel;
 
-async function resolveChat(client: TelegramClient, identifier: string): Promise<ResolvedEntity> {
+export async function resolveChat(client: TelegramClient, identifier: string): Promise<ResolvedEntity> {
   // Check if it's a username (starts with @)
   if (identifier.startsWith('@')) {
     const entity = await client.getEntity(identifier);
@@ -517,7 +517,7 @@ async function resolveChat(client: TelegramClient, identifier: string): Promise<
   }
 }
 
-function getChatTitle(entity: ResolvedEntity): string {
+export function getChatTitle(entity: ResolvedEntity): string {
   if (entity instanceof Api.User) {
     return entity.firstName || entity.username || 'Unknown';
   }

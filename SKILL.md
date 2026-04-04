@@ -1,6 +1,6 @@
 ---
 name: telegram
-description: Telegram CLI for reading, searching, sending messages, managing groups, and syncing chat history. Use when the user asks about Telegram messages, wants to check inbox, search chats, send messages, mute/unmute chats, kick users, export history, or look up contacts and groups.
+description: Telegram CLI for reading, searching, sending messages, streaming (firehose), managing groups, and syncing chat history. Use when the user asks about Telegram messages, wants to check inbox, search chats, send messages, stream real-time messages, mute/unmute chats, kick users, export history, or look up contacts and groups.
 ---
 
 # 📬 Telegram CLI
@@ -18,6 +18,7 @@ Use this skill when the user:
 - Needs to look up group members or admins
 - Wants to mute/unmute a noisy chat or group
 - Needs to kick/remove a user from a group
+- Wants to stream real-time messages (firehose)
 - Wants to export or sync chat history to files
 - Asks to organize chats into folders
 - Wants to check their logged-in account or session status
@@ -95,6 +96,13 @@ telegram folders                             # List all folders
 telegram folder "Work"                       # Show chats in folder
 telegram folder-add "Work" "ProjectChat"     # Add chat to folder
 telegram folder-remove "Work" "ProjectChat"  # Remove chat from folder
+```
+
+### Streaming (Firehose)
+```bash
+telegram firehose                            # Stream all incoming messages as NDJSON
+telegram firehose --chat "ChatName"          # Stream only one chat
+telegram firehose --include-outgoing         # Include your own outgoing messages
 ```
 
 ### Sync / Export
@@ -183,6 +191,11 @@ telegram chats --type channel --json
 Kick a user from a group:
 ```bash
 telegram kick "My Group" @spammer
+```
+
+Stream real-time messages from a group:
+```bash
+telegram firehose --chat "Project Chat"
 ```
 
 ## 📝 Notes

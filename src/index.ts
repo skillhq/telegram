@@ -26,6 +26,7 @@ import {
   folderAddCommand,
   folderRemoveCommand,
   writeAccessCommand,
+  firehoseCommand,
 } from './commands/index.js';
 
 const require = createRequire(import.meta.url);
@@ -71,6 +72,9 @@ program.addCommand(replyCommand);
 
 // Configuration
 program.addCommand(writeAccessCommand);
+
+// Streaming
+program.addCommand(firehoseCommand);
 
 // Utilities
 program.addCommand(syncCommand);
