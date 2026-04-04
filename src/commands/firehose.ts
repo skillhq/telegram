@@ -10,12 +10,12 @@ export const firehoseCommand = new Command('firehose')
   .action(async (options) => {
     const client = await getClient();
 
-    let chatFilter: Api.TypeEntityLike | undefined;
+    let chatId: number | undefined;
     let chatLabel: string | undefined;
 
     if (options.chat) {
       const entity = await resolveChat(client, options.chat);
-      chatFilter = entity;
+      chatId = entity.id.toJSNumber();
       chatLabel = getChatTitle(entity);
       process.stderr.write(`Streaming messages from "${chatLabel}"…\n`);
     } else {
@@ -72,7 +72,7 @@ export const firehoseCommand = new Command('firehose')
     };
 
     const eventParams: ConstructorParameters<typeof NewMessage>[0] = {};
-    if (chatFilter) eventParams.chats = [chatFilter];
+    if (chatId) eventParams.chats = [chatId];
     if (!options.includeOutgoing) eventParams.outgoing = false;
 
     client.addEventHandler(handler, new NewMessage(eventParams));
