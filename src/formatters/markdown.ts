@@ -1,4 +1,5 @@
 import type { ChatInfo, MessageInfo } from '../client.js';
+import { formatMediaLabel } from '../client.js';
 
 export function formatChatsMarkdown(chats: ChatInfo[]): string {
   const lines: string[] = ['# Telegram Chats\n'];
@@ -39,9 +40,13 @@ export function formatMessagesMarkdown(messages: MessageInfo[], chatTitle?: stri
     const sender = msg.isOutgoing ? 'You' : msg.sender;
     const reply = msg.replyToMsgId ? ` (reply to #${msg.replyToMsgId})` : '';
 
+    const media = formatMediaLabel(msg.mediaType, msg.fileName, msg.fileSize);
+    const text = msg.text || (media ? '' : '*(no text)*');
+    const display = media ? (text ? `[${media}] ${text}` : `[${media}]`) : text;
+
     lines.push(`### ${sender} - ${time}${reply}`);
     lines.push(`*Message ID: ${msg.id}*\n`);
-    lines.push(msg.text || '*(no text)*');
+    lines.push(display);
     lines.push('\n---\n');
   }
 

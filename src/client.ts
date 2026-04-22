@@ -113,58 +113,208 @@ export interface MessageInfo {
   text: string;
   replyToMsgId?: number;
   isOutgoing: boolean;
+  mediaType?: string;
+  fileName?: string;
+  fileSize?: number;
+}
+
+export function parseTimeOffset(offset: string): Date {
+  const now = new Date();
+  const match = offset.match(/^(\d+)([mhd])$/);
+  if (!match) {
+    throw new Error(`Invalid time offset: ${offset}. Use format like "1h", "30m", "7d"`);
+  }
+  const value = parseInt(match[1]);
+  const unit = match[2];
+  switch (unit) {
+    case 'm': return new Date(now.getTime() - value * 60 * 1000);
+    case 'h': return new Date(now.getTime() - value * 60 * 60 * 1000);
+    case 'd': return new Date(now.getTime() - value * 24 * 60 * 60 * 1000);
+    default: throw new Error(`Unknown time unit: ${unit}`);
+  }
+}
+
+function getSenderCacheKey(fromId: Api.TypePeer): string {
+  if (fromId instanceof Api.PeerUser) return `user:${fromId.userId}`;
+  if (fromId instanceof Api.PeerChat) return `chat:${fromId.chatId}`;
+  if (fromId instanceof Api.PeerChannel) return `channel:${fromId.channelId}`;
+  return String(fromId);
+}
+
+function extractMediaInfo(media: Api.TypeMessageMedia | undefined): { mediaType?: string; fileName?: string; fileSize?: number } {
+  if (!media) return {};
+
+  if (media instanceof Api.MessageMediaPhoto) {
+    return { mediaType: 'photo' };
+  }
+
+  if (media instanceof Api.MessageMediaDocument && media.document instanceof Api.Document) {
+    const doc = media.document;
+    let mediaType = 'document';
+    let fileName: string | undefined;
+
+    for (const attr of doc.attributes) {
+      if (attr instanceof Api.DocumentAttributeFilename) {
+        fileName = attr.fileName;
+      }
+      if (attr instanceof Api.DocumentAttributeSticker) {
+        mediaType = 'sticker';
+      }
+      if (attr instanceof Api.DocumentAttributeVideo) {
+        mediaType = attr.roundMessage ? 'video_note' : 'video';
+      }
+      if (attr instanceof Api.DocumentAttributeAudio) {
+        mediaType = attr.voice ? 'voice' : 'audio';
+      }
+      if (attr instanceof Api.DocumentAttributeAnimated) {
+        mediaType = 'gif';
+      }
+    }
+
+    return { mediaType, fileName, fileSize: doc.size ? Number(doc.size) : undefined };
+  }
+
+  if (media instanceof Api.MessageMediaContact) {
+    return { mediaType: 'contact' };
+  }
+
+  if (media instanceof Api.MessageMediaGeo || media instanceof Api.MessageMediaGeoLive) {
+    return { mediaType: 'location' };
+  }
+
+  if (media instanceof Api.MessageMediaPoll) {
+    return { mediaType: 'poll' };
+  }
+
+  if (media instanceof Api.MessageMediaWebPage) {
+    return { mediaType: 'webpage' };
+  }
+
+  if (media instanceof Api.MessageMediaVenue) {
+    return { mediaType: 'venue' };
+  }
+
+  if (media instanceof Api.MessageMediaDice) {
+    return { mediaType: 'dice' };
+  }
+
+  return {};
+}
+
+export function formatMediaLabel(mediaType?: string, fileName?: string, fileSize?: number): string {
+  if (!mediaType) return '';
+  const sizeStr = fileSize ? ` (${formatFileSize(fileSize)})` : '';
+  switch (mediaType) {
+    case 'photo': return '📷 Photo';
+    case 'video': return `🎥 Video${sizeStr}`;
+    case 'video_note': return '🎥 Video note';
+    case 'voice': return '🎤 Voice message';
+    case 'audio': return fileName ? `🎵 ${fileName}${sizeStr}` : `🎵 Audio${sizeStr}`;
+    case 'document': return fileName ? `📎 ${fileName}${sizeStr}` : `📎 Document${sizeStr}`;
+    case 'sticker': return '😀 Sticker';
+    case 'gif': return '🎬 GIF';
+    case 'contact': return '👤 Contact';
+    case 'location': return '📍 Location';
+    case 'venue': return '📍 Venue';
+    case 'poll': return '📊 Poll';
+    case 'webpage': return '🔗 Link preview';
+    case 'dice': return '🎲 Dice';
+    default: return '📦 Media';
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 export async function getMessages(
   client: TelegramClient,
   chatIdentifier: string,
-  options: { limit?: number; offsetId?: number; minDate?: Date; maxDate?: Date } = {}
+  options: { limit?: number; offsetId?: number; minDate?: Date; maxDate?: Date; minId?: number } = {}
 ): Promise<{ messages: MessageInfo[]; chatTitle: string }> {
-  const { limit = 50, offsetId, minDate, maxDate } = options;
+  const { limit = 50, offsetId, minDate, maxDate, minId } = options;
 
-  // Find the chat by name or username
   const entity = await resolveChat(client, chatIdentifier);
   const chatTitle = getChatTitle(entity);
 
   const messages: MessageInfo[] = [];
+  const senderCache = new Map<string, { name: string; id: string }>();
+  const BATCH_SIZE = 100;
 
-  // Use iterMessages for better control over parameters
-  const iterParams: { limit: number; offsetId?: number; reverse?: boolean } = {
-    limit: limit * 2, // Get more to filter by date
-  };
+  let currentOffsetId = offsetId;
+  let firstBatch = true;
 
-  if (offsetId) {
-    iterParams.offsetId = offsetId;
-  }
+  while (messages.length < limit) {
+    const batchLimit = Math.min(BATCH_SIZE, limit - messages.length + 50);
 
-  const result = await client.getMessages(entity, iterParams);
+    const params: { limit: number; offsetId?: number; offsetDate?: number; minId?: number } = {
+      limit: batchLimit,
+    };
 
-  for (const msg of result) {
-    if (msg instanceof Api.Message) {
+    if (currentOffsetId) {
+      params.offsetId = currentOffsetId;
+    } else if (firstBatch && maxDate) {
+      // Server-side date filtering: start from maxDate on first batch
+      params.offsetDate = Math.floor(maxDate.getTime() / 1000);
+    }
+
+    if (minId) {
+      params.minId = minId;
+    }
+
+    const batch = await client.getMessages(entity, params);
+    firstBatch = false;
+
+    if (batch.length === 0) break;
+
+    let reachedMinDate = false;
+
+    for (const msg of batch) {
+      if (!(msg instanceof Api.Message)) continue;
+
       const msgDate = new Date(msg.date * 1000);
 
-      // Filter by date if specified
-      if (minDate && msgDate < minDate) continue;
       if (maxDate && msgDate > maxDate) continue;
+
+      if (minDate && msgDate < minDate) {
+        reachedMinDate = true;
+        break;
+      }
+
       if (messages.length >= limit) break;
 
+      // Resolve sender with cache
       let sender = 'Unknown';
       let senderId: string | undefined;
 
       if (msg.fromId) {
-        try {
-          const senderEntity = await client.getEntity(msg.fromId);
-          if (senderEntity instanceof Api.User) {
-            sender = senderEntity.firstName || senderEntity.username || 'Unknown';
-            senderId = senderEntity.id.toString();
-          } else if (senderEntity instanceof Api.Channel || senderEntity instanceof Api.Chat) {
-            sender = (senderEntity as Api.Channel | Api.Chat).title || 'Unknown';
-            senderId = senderEntity.id.toString();
+        const cacheKey = getSenderCacheKey(msg.fromId);
+        const cached = senderCache.get(cacheKey);
+
+        if (cached) {
+          sender = cached.name;
+          senderId = cached.id;
+        } else {
+          try {
+            const senderEntity = await client.getEntity(msg.fromId);
+            if (senderEntity instanceof Api.User) {
+              sender = senderEntity.firstName || senderEntity.username || 'Unknown';
+              senderId = senderEntity.id.toString();
+            } else if (senderEntity instanceof Api.Channel || senderEntity instanceof Api.Chat) {
+              sender = (senderEntity as Api.Channel | Api.Chat).title || 'Unknown';
+              senderId = senderEntity.id.toString();
+            }
+            senderCache.set(cacheKey, { name: sender, id: senderId || '' });
+          } catch {
+            // Ignore entity resolution errors
           }
-        } catch {
-          // Ignore entity resolution errors
         }
       }
+
+      const mediaInfo = extractMediaInfo(msg.media);
 
       messages.push({
         id: msg.id,
@@ -174,8 +324,24 @@ export async function getMessages(
         text: msg.message || '',
         replyToMsgId: msg.replyTo?.replyToMsgId,
         isOutgoing: msg.out ?? false,
+        ...mediaInfo,
       });
     }
+
+    if (reachedMinDate) break;
+    if (messages.length >= limit) break;
+
+    // Set offsetId for next batch
+    const lastMsg = batch[batch.length - 1];
+    if (lastMsg instanceof Api.Message) {
+      if (currentOffsetId === lastMsg.id) break; // No progress
+      currentOffsetId = lastMsg.id;
+    } else {
+      break;
+    }
+
+    // If batch was smaller than requested, no more messages
+    if (batch.length < batchLimit) break;
   }
 
   return { messages, chatTitle };

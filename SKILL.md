@@ -101,9 +101,20 @@ telegram folder-remove "Work" "ProjectChat"  # Remove chat from folder
 ```bash
 telegram sync                                # Sync last 7 days to ./telegram-sync
 telegram sync --days 30                      # Sync last 30 days
+telegram sync --since "12h"                  # Sync messages from last 12 hours
+telegram sync --until "2d"                   # Sync messages up to 2 days ago
+telegram sync --all                          # Sync entire chat history (no time limit)
 telegram sync --chat "ChatName"              # Sync specific chat only
 telegram sync --output ~/exports             # Custom output directory
+telegram sync --resume                       # Incremental: only fetch new messages
+telegram sync --resume --all                 # Keep a complete archive up to date
 ```
+
+**Incremental sync (`--resume`):**
+- Tracks last synced message ID per chat in `.sync-meta.json`
+- On subsequent runs, only fetches messages newer than last sync
+- Appends new messages to existing markdown files
+- Combine with `--all` to maintain a complete, up-to-date archive
 
 ## 📤 Output Formats
 
@@ -126,6 +137,25 @@ telegram members "Group" --markdown          # Markdown member list
 
 **Supported on:** `inbox`, `read`, `search`, `chats`, `members`, `groups`, `contact`, `whoami`
 
+## 📎 Media Metadata
+
+Messages containing media (photos, videos, documents, voice notes, stickers, etc.) now include metadata instead of showing "(no text)":
+
+| Media Type | Display |
+|-----------|---------|
+| Photo | `[📷 Photo]` |
+| Video | `[🎥 Video (2.1 MB)]` |
+| Document | `[📎 report.pdf (540.0 KB)]` |
+| Voice | `[🎤 Voice message]` |
+| Audio | `[🎵 song.mp3 (3.2 MB)]` |
+| Sticker | `[😀 Sticker]` |
+| GIF | `[🎬 GIF]` |
+| Location | `[📍 Location]` |
+| Contact | `[👤 Contact]` |
+| Poll | `[📊 Poll]` |
+
+In JSON output, messages include `mediaType`, `fileName`, and `fileSize` fields when media is present.
+
 ## 🤖 AI Agent Guidance
 
 When using this CLI as an AI agent:
@@ -137,6 +167,9 @@ When using this CLI as an AI agent:
 - **Write operations** (`send`, `reply`, `kick`) should be confirmed with the user before executing
 - **Rate limiting**: avoid rapid successive calls; the Telegram API has rate limits
 - **Large groups**: use `-n` to limit `members` output on very large groups
+- **Full archive**: use `telegram sync --all --chat "Name"` to export complete chat history
+- **Keeping archives fresh**: use `telegram sync --resume` to incrementally update previous exports
+- **Media-rich chats**: messages with photos/videos/files now show metadata, not just "(no text)"
 
 ## 💡 Examples
 
@@ -170,9 +203,14 @@ Send a message:
 telegram send @username "Hello, checking in!"
 ```
 
-Export a chat's history:
+Export a chat's complete history:
 ```bash
-telegram sync --chat "Project Chat" --days 14 --output ~/exports
+telegram sync --all --chat "Project Chat" --output ~/exports
+```
+
+Incrementally update an existing export:
+```bash
+telegram sync --resume --output ~/exports
 ```
 
 Filter chats by type:
@@ -193,3 +231,6 @@ telegram kick "My Group" @spammer
 - Messages are returned in reverse chronological order (newest first)
 - Time flags (`--since`, `--until`) accept formats like `"1h"`, `"30m"`, `"7d"`
 - The `sync` command creates one markdown file per chat in the output directory
+- Sync metadata (`.sync-meta.json`) enables incremental sync with `--resume`
+- Sender names are cached per request for faster syncs (avoids redundant API calls)
+- Messages paginate automatically — no silent truncation for large chats

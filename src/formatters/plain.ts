@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { ChatInfo, MessageInfo, FolderInfo } from '../client.js';
+import { formatMediaLabel } from '../client.js';
 
 export function formatChats(chats: ChatInfo[]): string {
   const lines: string[] = [];
@@ -32,8 +33,12 @@ export function formatMessages(messages: MessageInfo[], chatTitle?: string): str
     const sender = msg.isOutgoing ? chalk.green('You') : chalk.cyan(msg.sender);
     const reply = msg.replyToMsgId ? chalk.gray(` [reply to #${msg.replyToMsgId}]`) : '';
 
+    const media = formatMediaLabel(msg.mediaType, msg.fileName, msg.fileSize);
+    const text = msg.text || (media ? '' : chalk.gray('(no text)'));
+    const display = media ? (text ? `[${media}] ${text}` : `[${media}]`) : text;
+
     lines.push(`${chalk.gray(time)} ${sender}${reply}:`);
-    lines.push(`  ${msg.text || chalk.gray('(no text)')}`);
+    lines.push(`  ${display}`);
     lines.push(chalk.gray(`  #${msg.id}`));
     lines.push('');
   }

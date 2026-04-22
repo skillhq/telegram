@@ -1,33 +1,10 @@
 import { Command } from 'commander';
-import { getClient, getMessages, disconnectClient } from '../client.js';
+import { getClient, getMessages, disconnectClient, parseTimeOffset } from '../client.js';
 import { formatJson } from '../formatters/json.js';
 import { formatMessages } from '../formatters/plain.js';
 import { formatMessagesMarkdown } from '../formatters/markdown.js';
 import { getOutputFormat } from '../formatters/index.js';
 import ora from 'ora';
-
-function parseTimeOffset(offset: string): Date {
-  const now = new Date();
-  const match = offset.match(/^(\d+)([mhd])$/);
-
-  if (!match) {
-    throw new Error(`Invalid time offset: ${offset}. Use format like "1h", "30m", "7d"`);
-  }
-
-  const value = parseInt(match[1]);
-  const unit = match[2];
-
-  switch (unit) {
-    case 'm':
-      return new Date(now.getTime() - value * 60 * 1000);
-    case 'h':
-      return new Date(now.getTime() - value * 60 * 60 * 1000);
-    case 'd':
-      return new Date(now.getTime() - value * 24 * 60 * 60 * 1000);
-    default:
-      throw new Error(`Unknown time unit: ${unit}`);
-  }
-}
 
 export const readCommand = new Command('read')
   .description('Read messages from a chat')
