@@ -331,14 +331,24 @@ export async function getMessages(
     if (reachedMinDate) break;
     if (messages.length >= limit) break;
 
-    // Set offsetId for next batch
-    const lastMsg = batch[batch.length - 1];
-    if (lastMsg instanceof Api.Message) {
-      if (currentOffsetId === lastMsg.id) break; // No progress
-      currentOffsetId = lastMsg.id;
-    } else {
-      break;
+    // Set offsetId for next batch. Telegram mixes MessageService / MessageEmpty
+    // items into the raw batch (joins/leaves, pinned-msg markers, etc.). We
+    // must page by the oldest Api.Message in the batch - using raw
+    // batch[batch.length - 1] silently aborts pagination whenever the oldest
+    // raw item happens to be a service message, which for active channels
+    // usually kicks in within the first 5-10 iterations and caps deep
+    // backfills at a few days of history.
+    let oldestMessageInBatch: Api.Message | null = null;
+    for (let i = batch.length - 1; i >= 0; i--) {
+      const candidate = batch[i];
+      if (candidate instanceof Api.Message) {
+        oldestMessageInBatch = candidate;
+        break;
+      }
     }
+    if (!oldestMessageInBatch) break; // batch was all service messages
+    if (currentOffsetId === oldestMessageInBatch.id) break; // no progress
+    currentOffsetId = oldestMessageInBatch.id;
 
     // If batch was smaller than requested, no more messages
     if (batch.length < batchLimit) break;
