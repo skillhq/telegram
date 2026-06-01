@@ -86,7 +86,14 @@ telegram members "GroupName"                 # List group members
 telegram admins "GroupName"                  # List admins only
 telegram groups                              # List all groups
 telegram groups --admin                      # Groups where you're admin
+telegram kick "GroupName" @username          # Remove a user from a group
+telegram promote "GroupName" @username       # Promote a member to admin
+telegram transfer-owner "GroupName" @username # Transfer ownership (prompts for 2FA password)
 ```
+
+> `transfer-owner` is irreversible and requires two-step verification on your account.
+> It works on supergroups/channels only, prompts for your 2FA password securely, and asks
+> you to retype the group name to confirm (`-y` skips the confirmation).
 
 ### Muting
 

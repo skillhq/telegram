@@ -13,6 +13,8 @@ export { membersCommand, adminsCommand } from './members.js';
 export { groupsCommand } from './groups.js';
 export { syncCommand } from './sync.js';
 export { kickCommand } from './kick.js';
+export { promoteCommand } from './promote.js';
+export { transferOwnerCommand } from './transfer-owner.js';
 export { muteCommand } from './mute.js';
 export { unmuteCommand } from './unmute.js';
 export { foldersCommand } from './folders.js';

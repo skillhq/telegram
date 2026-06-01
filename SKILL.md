@@ -18,6 +18,8 @@ Use this skill when the user:
 - Needs to look up group members or admins
 - Wants to mute/unmute a noisy chat or group
 - Needs to kick/remove a user from a group
+- Wants to promote a member to admin
+- Wants to transfer ownership of a group/channel to someone else
 - Wants to export or sync chat history to files
 - Asks to organize chats into folders
 - Wants to check their logged-in account or session status
@@ -78,7 +80,18 @@ telegram admins "GroupName"                  # List admins only
 telegram groups                              # List all groups
 telegram groups --admin                      # Groups where you're admin
 telegram kick "GroupName" @username           # Remove user from group
+telegram promote "GroupName" @username        # Promote a member to admin
+telegram promote "GroupName" @username --rank "Mod"  # Promote with a custom admin title
+telegram promote "GroupName" @username --add-admins  # Allow them to add admins too
+telegram transfer-owner "GroupName" @username # Hand over ownership (prompts for 2FA password)
 ```
+
+**`transfer-owner` notes:**
+- Irreversible: you drop to a regular admin/member and only the new owner can transfer it back.
+- Requires two-step verification (cloud password) on your account; it is prompted for securely at runtime.
+- Supergroups and channels only - convert a basic group to a supergroup first.
+- The target must already be a member. Telegram also blocks transfer for ~24h after a new login and ~7 days after setting/changing your 2FA password.
+- Prompts you to retype the group name to confirm; pass `-y` to skip that confirmation.
 
 ### Muting
 ```bash
@@ -164,7 +177,8 @@ When using this CLI as an AI agent:
 - **For displaying to the user**: use default or `--markdown`
 - **Chat identification**: names are partial-matched (e.g., "MetaDAO" matches "MetaDAO Community"), usernames must start with `@`, numeric IDs also work
 - **Read operations are safe** to run without confirmation
-- **Write operations** (`send`, `reply`, `kick`) should be confirmed with the user before executing
+- **Write operations** (`send`, `reply`, `kick`, `promote`, `transfer-owner`) should be confirmed with the user before executing
+- **`transfer-owner` is irreversible and interactive** (it prompts for a 2FA password and a typed confirmation), so it cannot be run unattended; never script it on a user's behalf without explicit instruction
 - **Rate limiting**: avoid rapid successive calls; the Telegram API has rate limits
 - **Large groups**: use `-n` to limit `members` output on very large groups
 - **Full archive**: use `telegram sync --all --chat "Name"` to export complete chat history
@@ -221,6 +235,16 @@ telegram chats --type channel --json
 Kick a user from a group:
 ```bash
 telegram kick "My Group" @spammer
+```
+
+Promote a member to admin:
+```bash
+telegram promote "My Group" @trustedmember
+```
+
+Transfer ownership of a group to someone else:
+```bash
+telegram transfer-owner "My Group" @newowner
 ```
 
 ## 📝 Notes

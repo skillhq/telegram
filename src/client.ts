@@ -1,5 +1,6 @@
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
+import { computeCheck } from 'telegram/Password.js';
 import { getCredentials, getSessionString, setSessionString, isConfigured } from './config.js';
 import bigInt from 'big-integer';
 
@@ -1162,4 +1163,200 @@ export async function kickUser(
   }
 
   return { success: false, message: 'Not a group chat' };
+}
+
+// --- Admin Management Functions ---
+
+async function resolveUser(client: TelegramClient, userIdentifier: string): Promise<Api.User> {
+  const entity = await client.getEntity(userIdentifier);
+  if (!(entity instanceof Api.User)) {
+    throw new Error('Target is not a user');
+  }
+  return entity;
+}
+
+function userLabel(user: Api.User): string {
+  return user.username ? `@${user.username}` : (user.firstName || user.id.toString());
+}
+
+function friendlyAdminError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes('USER_NOT_PARTICIPANT') || msg.includes('USER_NOT_MUTUAL_CONTACT')) {
+    return 'The target must be a member of the group first.';
+  }
+  if (msg.includes('CHAT_ADMIN_REQUIRED') || msg.includes('ADMIN_RIGHT')) {
+    return 'You lack the rights to add admins in this group.';
+  }
+  if (msg.includes('USER_PRIVACY_RESTRICTED')) {
+    return "The target's privacy settings prevent this action.";
+  }
+  if (msg.includes('USER_CREATOR')) {
+    return 'That user is the group creator and cannot be changed this way.';
+  }
+  if (msg.includes('USER_ADMIN_INVALID')) {
+    return "You can't edit this user's admin status (they may have been promoted by someone else).";
+  }
+  if (msg.includes('RIGHT_FORBIDDEN')) {
+    return 'One of the requested admin rights is not allowed in this group.';
+  }
+  if (msg.includes('ADMINS_TOO_MUCH')) {
+    return 'This group already has the maximum number of admins.';
+  }
+  return msg;
+}
+
+function friendlyTransferError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes('PASSWORD_HASH_INVALID')) {
+    return 'Incorrect 2FA password.';
+  }
+  if (msg.includes('PASSWORD_MISSING')) {
+    return 'No 2FA password is set on your account. Enable two-step verification first.';
+  }
+  if (msg.includes('SRP_PASSWORD_CHANGED') || msg.includes('SRP_ID_INVALID')) {
+    return 'Your 2FA password state changed mid-request. Please try again.';
+  }
+  if (msg.includes('PASSWORD_TOO_FRESH')) {
+    return 'Your 2FA password was set too recently. Telegram blocks ownership transfer for ~7 days after enabling or changing it.';
+  }
+  if (msg.includes('SESSION_TOO_FRESH') || msg.includes('FRESH_CHANGE_ADMINS_FORBIDDEN')) {
+    return 'This login session is too new. Telegram blocks ownership transfer for ~24h after a new login.';
+  }
+  if (msg.includes('CHAT_ADMIN_REQUIRED') || msg.includes('CHANNEL_PRIVATE')) {
+    return 'You must be the creator of this group to transfer ownership.';
+  }
+  if (msg.includes('USER_NOT_PARTICIPANT') || msg.includes('USER_NOT_MUTUAL_CONTACT')) {
+    return 'The target must be a member of the group first.';
+  }
+  if (msg.includes('USER_PRIVACY_RESTRICTED')) {
+    return "The target's privacy settings prevent the transfer. Ask them to adjust their privacy settings or add you as a contact.";
+  }
+  if (msg.includes('USER_CHANNELS_TOO_MUCH')) {
+    return 'The target is in too many groups/channels and cannot receive ownership right now.';
+  }
+  if (msg.includes('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+    return 'The target already owns too many public groups/channels.';
+  }
+  return msg;
+}
+
+export async function promoteAdmin(
+  client: TelegramClient,
+  chatIdentifier: string,
+  userIdentifier: string,
+  options: { rank?: string; canAddAdmins?: boolean } = {}
+): Promise<{ success: boolean; message: string }> {
+  const chat = await resolveChat(client, chatIdentifier);
+
+  let user: Api.User;
+  try {
+    user = await resolveUser(client, userIdentifier);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === 'Target is not a user') {
+      return { success: false, message: msg };
+    }
+    return { success: false, message: `User not found: ${userIdentifier}` };
+  }
+
+  if (chat instanceof Api.Channel) {
+    try {
+      await client.invoke(
+        new Api.channels.EditAdmin({
+          channel: chat,
+          userId: user,
+          adminRights: new Api.ChatAdminRights({
+            changeInfo: true,
+            postMessages: true,
+            editMessages: true,
+            deleteMessages: true,
+            banUsers: true,
+            inviteUsers: true,
+            pinMessages: true,
+            manageCall: true,
+            other: true,
+            addAdmins: options.canAddAdmins ?? false,
+          }),
+          rank: options.rank ?? '',
+        })
+      );
+      return { success: true, message: `Promoted ${userLabel(user)} to admin in "${chat.title}"` };
+    } catch (e: unknown) {
+      return { success: false, message: friendlyAdminError(e) };
+    }
+  } else if (chat instanceof Api.Chat) {
+    // Basic groups only support a single all-or-nothing admin toggle.
+    try {
+      await client.invoke(
+        new Api.messages.EditChatAdmin({
+          chatId: chat.id,
+          userId: user,
+          isAdmin: true,
+        })
+      );
+      const ignoredNote = (options.rank || options.canAddAdmins)
+        ? ' (basic groups grant full admin rights; --rank/--add-admins ignored)'
+        : '';
+      return { success: true, message: `Promoted ${userLabel(user)} to admin in "${chat.title}"${ignoredNote}` };
+    } catch (e: unknown) {
+      return { success: false, message: friendlyAdminError(e) };
+    }
+  }
+
+  return { success: false, message: 'Not a group chat' };
+}
+
+export async function transferOwnership(
+  client: TelegramClient,
+  chatIdentifier: string,
+  userIdentifier: string,
+  password: string
+): Promise<{ success: boolean; message: string }> {
+  const chat = await resolveChat(client, chatIdentifier);
+
+  if (!(chat instanceof Api.Channel)) {
+    return {
+      success: false,
+      message: 'Ownership transfer is only supported for supergroups and channels. Convert a basic group to a supergroup first.',
+    };
+  }
+
+  let user: Api.User;
+  try {
+    user = await resolveUser(client, userIdentifier);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === 'Target is not a user') {
+      return { success: false, message: msg };
+    }
+    return { success: false, message: `User not found: ${userIdentifier}` };
+  }
+
+  let passwordInfo: Api.account.Password;
+  try {
+    passwordInfo = await client.invoke(new Api.account.GetPassword());
+  } catch (e: unknown) {
+    return { success: false, message: e instanceof Error ? e.message : String(e) };
+  }
+
+  if (!passwordInfo.hasPassword) {
+    return {
+      success: false,
+      message: 'Ownership transfer requires two-step verification (a cloud password) on your account. Enable it in Telegram > Settings > Privacy and Security first.',
+    };
+  }
+
+  try {
+    const srpCheck = await computeCheck(passwordInfo, password);
+    await client.invoke(
+      new Api.channels.EditCreator({
+        channel: chat,
+        userId: user,
+        password: srpCheck,
+      })
+    );
+    return { success: true, message: `Transferred ownership of "${chat.title}" to ${userLabel(user)}` };
+  } catch (e: unknown) {
+    return { success: false, message: friendlyTransferError(e) };
+  }
 }

@@ -19,6 +19,8 @@ import {
   groupsCommand,
   syncCommand,
   kickCommand,
+  promoteCommand,
+  transferOwnerCommand,
   muteCommand,
   unmuteCommand,
   foldersCommand,
@@ -56,6 +58,8 @@ program.addCommand(membersCommand);
 program.addCommand(adminsCommand);
 program.addCommand(groupsCommand);
 program.addCommand(kickCommand);
+program.addCommand(promoteCommand);
+program.addCommand(transferOwnerCommand);
 program.addCommand(muteCommand);
 program.addCommand(unmuteCommand);
 

@@ -9,6 +9,7 @@ export interface AuditEntry {
   message?: string;
   replyToMsgId?: number;
   kickedUser?: string;
+  targetUser?: string;
   result: {
     success: boolean;
     messageId?: number;
